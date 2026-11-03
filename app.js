@@ -47,9 +47,9 @@ function toCSV(h,rows){return[h.join(','),...rows.map(r=>h.map(k=>csvCell(r[k]))
 const yes=v=>/^(y|yes|true|1|x)$/i.test(String(v||'').trim());
 const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
 const TEMPLATES={
- bills:{cols:['name','amount','pay_from','due_type','due_day','last_due','cycle_days','autopay','category'],
-  guide:{name:'Bill name (required)',amount:'Monthly amount, like 45.99',pay_from:'Account or card it is paid from',due_type:'fixed or varies',due_day:'For fixed: day of month 1-31',last_due:'For varies: last due date YYYY-MM-DD',cycle_days:'For varies: days between bills, like 30',autopay:'yes or no',category:'Optional label'},
-  map:o=>({id:uid(),name:o.name,cents:parseCents(o.amount),payFrom:o.pay_from||'',dueType:(o.due_type||'').toLowerCase().startsWith('v')?'varies':'fixed',dueDay:o.due_day?+o.due_day:'',lastDue:o.last_due||'',cycleDays:o.cycle_days?+o.cycle_days:'',autopay:yes(o.autopay),category:o.category||'',paid:{}})},
+ bills:{cols:['name','amount','pay_from','due_type','due_day','last_due','cycle_days','autopay','category','notes','new_amount','new_amount_from'],
+  guide:{name:'Bill name (required)',amount:'Monthly amount, like 45.99',pay_from:'Account or card it is paid from',due_type:'fixed or varies',due_day:'For fixed: day of month 1-31',last_due:'For varies: last due date YYYY-MM-DD',cycle_days:'For varies: days between bills, like 30',autopay:'yes or no',category:'Optional label',notes:'Optional notes',new_amount:'Optional: amount after a change, like 29.99',new_amount_from:'Month the new amount starts, YYYY-MM'},
+  map:o=>({id:uid(),name:o.name,cents:parseCents(o.amount),payFrom:o.pay_from||'',dueType:(o.due_type||'').toLowerCase().startsWith('v')?'varies':'fixed',dueDay:o.due_day?+o.due_day:'',lastDue:o.last_due||'',cycleDays:o.cycle_days?+o.cycle_days:'',autopay:yes(o.autopay),category:o.category||'',notes:o.notes||'',changes:o.new_amount&&/^\d{4}-\d{2}$/.test(o.new_amount_from||'')?[{from:o.new_amount_from,cents:parseCents(o.new_amount)}]:[],paid:{}})},
  stock:{cols:['item','qty','min_qty','location','unit','notes'],
   guide:{item:'Item name (required)',qty:'How many you have now (whole number)',min_qty:'Buy more when at or below this',location:'Pantry, garage, etc.',unit:'Optional: rolls, cans',notes:'Optional'},
   map:o=>({id:uid(),name:o.item,qty:parseInt(o.qty)||0,min:parseInt(o.min_qty)||0,location:o.location||'',unit:o.unit||'',notes:o.notes||''})},
@@ -61,6 +61,7 @@ function importCSV(state,type,text){const T=TEMPLATES[type];const rows=parseCSV(
   rows.forEach((o,i)=>{if(!o[KEYNAME[type]]){bad.push(i+2);return}const x=T.map(o);if(x.cents!==undefined&&isNaN(x.cents)){bad.push(i+2);return}state[type].push(x);added++});return{added,bad}}
 function validBackup(o){if(!o||typeof o!=='object')return false;const b=blank();for(const k of Object.keys(b))if(k!=='version'&&k!=='settings'&&!Array.isArray(o[k]||[]))return false;return true}
 function mergeBackup(o){const b=blank();for(const k of Object.keys(b))if(o[k]!==undefined)b[k]=o[k];b.settings=Object.assign(blank().settings,o.settings||{});return b}
+function amountFor(b,ym){let c=b.cents||0;(b.changes||[]).slice().sort((x,y)=>x.from<y.from?-1:1).forEach(x=>{if(x.from<=ym)c=x.cents});return c}
 function sum(a,f){return a.reduce((s,x)=>s+(f(x)||0),0)}
 const EXAMPLE={bills:[{name:'Example Electric',cents:9500,payFrom:'Example Checking',dueType:'varies',lastDue:'',cycleDays:30,autopay:false,category:'Utility'},{name:'Example Rent',cents:120000,payFrom:'Example Checking',dueType:'fixed',dueDay:1,autopay:true,category:'Housing'},{name:'Example Phone',cents:5999,payFrom:'Example Card',dueType:'fixed',dueDay:15,autopay:true,category:'Phone'}],
  stock:[{name:'Example Paper Towels',qty:1,min:2,location:'Example Pantry',unit:'rolls'},{name:'Example Dish Soap',qty:3,min:1,location:'Example Kitchen',unit:'bottles'}],
@@ -70,7 +71,7 @@ const EXAMPLE={bills:[{name:'Example Electric',cents:9500,payFrom:'Example Check
  college:[{type:'Books',desc:'Example Textbook',cents:8900,date:''}]};
 function addExample(s){const t=todayStr();for(const k of Object.keys(EXAMPLE))EXAMPLE[k].forEach(x=>{const y=Object.assign({id:uid(),example:true},x);if(k==='bills'){y.paid={};if(y.dueType==='varies')y.lastDue=t}if('date'in y&&!y.date)y.date=t;s[k].push(y)})}
 function removeExample(s){for(const k of Object.keys(EXAMPLE))s[k]=s[k].filter(x=>!x.example)}
-if(typeof module!=='undefined')module.exports={parseCents,fmt,perPaycheck,nextDue,dueInMonth,parseCSV,toCSV,importCSV,blank,validBackup,mergeBackup,addExample,removeExample,TEMPLATES};
+if(typeof module!=='undefined')module.exports={amountFor,parseCents,fmt,perPaycheck,nextDue,dueInMonth,parseCSV,toCSV,importCSV,blank,validBackup,mergeBackup,addExample,removeExample,TEMPLATES};
 
 /* ===== UI ===== */
 if(typeof document!=='undefined'){
@@ -91,11 +92,11 @@ const exBanner=()=>Object.keys(EXAMPLE).some(k=>S[k].some(x=>x.example))?`<div c
 function emptyNote(t){return`<p class="muted">Nothing here yet. ${t}</p>`}
 function V(){
  const t=todayStr(),ym=t.slice(0,7);
- if(tab==='bills'){const tot=sum(S.bills,b=>b.cents),pf=S.settings.payFreq;
+ if(tab==='bills'){const tot=sum(S.bills,b=>amountFor(b,ym)),pf=S.settings.payFreq;
   return exBanner()+`<div class="card"><h2>Bills and finances</h2><div class="row"><div><div class="muted">Monthly total</div><div class="good" style="font-size:24px">${fmt(tot)}</div></div><div><div class="muted">Set aside per paycheck (${pf})</div><div class="good" style="font-size:24px">${fmt(perPaycheck(tot,pf))}</div></div></div>
   <p class="muted">Paid this month (${ym}): ${S.bills.filter(b=>b.paid&&b.paid[ym]).length} of ${S.bills.length}. Change pay frequency in Settings.</p></div>
-  <div class="card"><h3>Your bills</h3>${S.bills.length?S.bills.map(b=>{const nd=nextDue(b,t);const pm=[ym,addM(ym,-1)];
-   return`<div class="item"><b>${esc(b.name)}</b> ${fmt(b.cents)} <span class="muted">(${fmt(perPaycheck(b.cents,pf))} per paycheck)</span><br>
+  <div class="card"><h3>Your bills</h3>${S.bills.length?S.bills.map(b=>{const nd=nextDue(b,t);const pm=[ym,addM(ym,-1),addM(ym,-2)];const cur=amountFor(b,ym);
+   return`<div class="item"><b>${esc(b.name)}</b> ${fmt(cur)} <span class="muted">(${fmt(perPaycheck(cur,pf))} per paycheck)</span><br>${(b.changes||[]).filter(x=>x.from>ym).map(x=>`<span class="warn">Changes to ${fmt(x.cents)} from ${esc(x.from)}</span><br>`).join('')}${b.notes?`<span class="muted">Note: ${esc(b.notes)}</span><br>`:''}
    <span class="muted">${b.payFrom?'From '+esc(b.payFrom)+' | ':''}${b.dueType==='fixed'?'Due day '+esc(b.dueDay):'Varies, every '+esc(b.cycleDays)+' days'}${b.autopay?' | Autopay':''}</span><br>
    Next due: <b>${nd||'add a due date'}</b>${b.dueType==='varies'&&nd?' <span class="warn">(estimate)</span>':''}
    ${pm.map(m=>`<label class="chk"><input type="checkbox" data-paid="${b.id}:${m}" ${b.paid&&b.paid[m]?'checked':''}> Paid for ${m}</label>`).join('')}
@@ -104,8 +105,8 @@ function V(){
  if(tab==='cal'){const[y,m]=calMonth.split('-').map(Number);const first=new Date(Date.UTC(y,m-1,1)).getUTCDay();const ev={};
   S.bills.forEach(b=>dueInMonth(b,calMonth).forEach(d=>(ev[d.date]=ev[d.date]||[]).push({b,est:d.est})));
   let cells=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="h">${d}</div>`).join('')+'<div class="h"></div>'.repeat(first).replace(/class="h"/g,'');
-  for(let d=1;d<=dim(y,m);d++){const ds=calMonth+'-'+String(d).padStart(2,'0');cells+=`<div class="${ds===t?'today':''}"><b>${d}</b>${(ev[ds]||[]).map(e=>`<div class="ev ${e.est?'est':''} ${e.b.paid&&e.b.paid[calMonth]?'paid':''}">${esc(e.b.name)} ${fmt(e.b.cents)}</div>`).join('')}</div>`}
-  const list=Object.keys(ev).sort().map(d=>ev[d].map(e=>`<div class="item">${d}: <b>${esc(e.b.name)}</b> ${fmt(e.b.cents)}${e.est?' <span class="warn">estimate</span>':''}${e.b.paid&&e.b.paid[calMonth]?' <span class="good">paid</span>':''}</div>`).join('')).join('');
+  for(let d=1;d<=dim(y,m);d++){const ds=calMonth+'-'+String(d).padStart(2,'0');cells+=`<div class="${ds===t?'today':''}"><b>${d}</b>${(ev[ds]||[]).map(e=>`<div class="ev ${e.est?'est':''} ${e.b.paid&&e.b.paid[calMonth]?'paid':''}">${esc(e.b.name)} ${fmt(amountFor(e.b,calMonth))}</div>`).join('')}</div>`}
+  const list=Object.keys(ev).sort().map(d=>ev[d].map(e=>`<div class="item">${d}: <b>${esc(e.b.name)}</b> ${fmt(amountFor(e.b,calMonth))}${e.est?' <span class="warn">estimate</span>':''}${e.b.paid&&e.b.paid[calMonth]?' <span class="good">paid</span>':''}</div>`).join('')).join('');
   return`<div class="card"><h2>Due-date calendar</h2><div class="row"><button class="sec" data-cal="-1">Previous</button><h3 style="text-align:center">${calMonth}</h3><button class="sec" data-cal="1">Next</button></div>
   <div class="cal">${cells}</div><p class="muted">Yellow = estimated from last due date plus cycle days. Gray = marked paid.</p></div><div class="card"><h3>This month's list</h3>${list||emptyNote('Add bills with due dates to fill the calendar.')}</div>`}
  if(tab==='shop')return subnav('shop',[['guide','Step-by-step'],['calc','Money maker'],['deals','Deals'],['pref','Preferred'],['apps','Apps']])+shopView();
@@ -136,7 +137,7 @@ function billForm(id){const b=S.bills.find(x=>x.id===id)||{dueType:'fixed'};retu
  <label>Pay from (account or card)<input name="payFrom" value="${esc(b.payFrom)}"></label>
  <label>Due date rule<select name="dueType"><option value="fixed" ${b.dueType==='fixed'?'selected':''}>Same day every month</option><option value="varies" ${b.dueType==='varies'?'selected':''}>Varies (estimate it)</option></select></label>
  <div class="row"><label>Day of month (fixed)<input name="dueDay" type="number" min="1" max="31" value="${esc(b.dueDay)}"></label><label>Last due date (varies)<input name="lastDue" type="date" value="${esc(b.lastDue)}"></label><label>Days between bills<input name="cycleDays" type="number" min="1" value="${esc(b.cycleDays||'')}"></label></div>
- <label class="chk"><input type="checkbox" name="autopay" ${b.autopay?'checked':''}> Autopay</label><button>${id?'Save':'Add bill'}</button>${id?'<button type="button" class="sec" data-cancel="bills">Cancel</button>':''}</form></div>`}
+ <label>Notes<input name="notes" value="${esc(b.notes)}"></label><label class="chk"><input type="checkbox" name="autopay" ${b.autopay?'checked':''}> Autopay</label><button>${id?'Save':'Add bill'}</button>${id?'<button type="button" class="sec" data-cancel="bills">Cancel</button>':''}</form></div>`}
 function stockForm(id){const x=S.stock.find(s=>s.id===id)||{};return`<div class="card"><h3>${id?'Edit item':'Add stock item'}</h3><form data-form="stock" data-id="${id||''}"><label>Item<input name="name" required value="${esc(x.name)}"></label><div class="row"><label>Have<input name="qty" type="number" min="0" value="${x.qty??''}"></label><label>Buy more at<input name="min" type="number" min="0" value="${x.min??''}"></label></div><label>Location<input name="location" value="${esc(x.location)}"></label><label>Unit<input name="unit" value="${esc(x.unit)}"></label><button>${id?'Save':'Add item'}</button></form></div>`}
 const APPS=[['Ibotta','https://ibotta.com','Cash back on groceries and household items; add offers before you shop.'],['Fetch','https://fetch.com','Scan any receipt for points; works on every receipt.'],['Coupons.com','https://www.coupons.com','Printable and digital manufacturer coupons.'],['Checkout 51','https://www.checkout51.com','Weekly cash-back offers, scan receipt.'],['Upside','https://www.upside.com','Cash back on gas, groceries and restaurants.'],['Rakuten','https://www.rakuten.com','Cash back for online shopping.'],['RetailMeNot','https://www.retailmenot.com','Promo codes for online orders.'],['Capital One Shopping','https://capitaloneshopping.com','Finds lower prices and codes online; free, no card needed.'],['Walmart','https://www.walmart.com','Walmart Cash rewards and pickup.'],['CVS','https://www.cvs.com','ExtraCare coupons and ExtraBucks.'],['Kroger','https://www.kroger.com','Digital coupons and fuel points.'],['Target','https://www.target.com','Target Circle deals.'],['Dollar General','https://www.dollargeneral.com','DG digital coupons and $5 off $25 deals.'],['Walgreens','https://www.walgreens.com','myWalgreens cash rewards and clip coupons.'],['Dollar Tree','https://www.dollartree.com','Accepts manufacturer coupons.']];
 function shopView(){const s=sub.shop;
@@ -175,7 +176,7 @@ document.addEventListener('change',e=>{const el=e.target;if(el.dataset.set){S.se
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target,k=f.dataset.form,v=Object.fromEntries(new FormData(f));
  if(k==='calc'){const n=parseCents(v.p)-parseCents(v.c)-parseCents(v.r)-parseCents(v.w);$('#calcout').innerHTML=isNaN(n)?'<p class="bad">Check the numbers.</p>':`<p style="font-size:22px">Net: <b class="${n<0?'good':''}">${fmt(n)}</b> ${n<0?'<span class="good">Money maker!</span>':n===0?'Free':''}</p>`;return}
  const c=parseCents(v.amount||'0');if(isNaN(c))return alert('Enter the amount like 12.34');
- if(k==='bills'){const o={name:v.name,cents:c,payFrom:v.payFrom,dueType:v.dueType,dueDay:v.dueDay?+v.dueDay:'',lastDue:v.lastDue,cycleDays:v.cycleDays?+v.cycleDays:'',autopay:!!v.autopay};
+ if(k==='bills'){const o={name:v.name,cents:c,payFrom:v.payFrom,dueType:v.dueType,dueDay:v.dueDay?+v.dueDay:'',lastDue:v.lastDue,cycleDays:v.cycleDays?+v.cycleDays:'',autopay:!!v.autopay,notes:v.notes||''};
   const ex=S.bills.find(x=>x.id===f.dataset.id);if(ex)Object.assign(ex,o);else S.bills.push(Object.assign({id:uid(),paid:{}},o));editing.bills=null}
  if(k==='stock'){const o={name:v.name,qty:parseInt(v.qty)||0,min:parseInt(v.min)||0,location:v.location,unit:v.unit};const ex=S.stock.find(x=>x.id===f.dataset.id);if(ex)Object.assign(ex,o);else S.stock.push(Object.assign({id:uid()},o));editing.stock=null}
  if(k==='deductions')S.deductions.push({id:uid(),date:v.date,category:v.category,desc:v.desc,cents:c,receipt:v.receipt});
