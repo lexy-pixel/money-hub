@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Money Hub">
+<meta name="theme-color" content="#0f766e"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Home Money Hub</title>
+<style>
+:root{--g:#0f766e;--bg:#f6f7f9;--card:#fff;--t:#1f2937;--m:#6b7280;--r:#b91c1c;--y:#92400e}
+*{box-sizing:border-box}body{margin:0;font:17px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--t);padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(80px + env(safe-area-inset-bottom)) env(safe-area-inset-left)}
+header{background:var(--g);color:#fff;padding:14px 16px}header h1{margin:0;font-size:22px}
+main{padding:12px;max-width:760px;margin:auto}.card{background:var(--card);border-radius:14px;padding:14px;margin:0 0 12px;box-shadow:0 1px 3px #0001}
+h2{font-size:20px;margin:4px 0 10px}h3{font-size:17px;margin:10px 0 6px}
+button,.btn{min-height:44px;padding:10px 14px;border-radius:10px;border:0;background:var(--g);color:#fff;font-size:16px;cursor:pointer;text-decoration:none;display:inline-block;margin:3px 2px}
+button.sec{background:#e5e7eb;color:var(--t)}button.del{background:#fee2e2;color:var(--r)}
+input,select,textarea{width:100%;min-height:44px;font-size:16px;padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;margin:3px 0 8px;background:#fff}
+label{font-size:14px;color:var(--m);display:block}.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1 1 140px}
+.item{border-top:1px solid #eee;padding:10px 0}.item:first-child{border-top:0}.muted{color:var(--m);font-size:14px}.warn{color:var(--y);font-weight:600}.bad{color:var(--r);font-weight:600}.good{color:var(--g);font-weight:600}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #ddd;display:flex;overflow-x:auto;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1 1 0;background:none;color:var(--m);border-radius:0;font-size:12px;min-width:0;padding:10px 2px;margin:0}nav button.on{color:var(--g);font-weight:700}
+.sub{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px}.sub button{background:#e5e7eb;color:var(--t);white-space:nowrap}.sub button.on{background:var(--g);color:#fff}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.cal div{background:#fff;min-height:64px;border-radius:6px;padding:3px;font-size:11px;overflow:hidden}.cal .h{min-height:0;background:none;text-align:center;font-weight:700}
+.cal .ev{background:#ccfbf1;border-radius:4px;margin-top:2px;padding:1px 3px}.cal .ev.est{background:#fef3c7}.cal .ev.paid{background:#e5e7eb;text-decoration:line-through}.cal .today{outline:2px solid var(--g)}
+.chk{display:flex;align-items:center;gap:8px;min-height:44px}.chk input{width:24px;height:24px;min-height:0;margin:0}
+ol li,ul li{margin-bottom:6px}a{color:var(--g)}table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:6px;border-bottom:1px solid #eee}
+.banner{background:#fef3c7;padding:10px;border-radius:10px;margin-bottom:10px}
+</style></head><body>
+<header><h1>Home Money Hub</h1><div class="muted" style="color:#d1fae5" id="saved">Saved on this device</div></header>
+<main id="app"></main>
+<nav id="nav"></nav>
+<script src="app.js"></script>
+</body></html>
